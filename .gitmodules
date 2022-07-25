@@ -1,0 +1,6 @@
+[submodule "yolov5"]
+	path = yolov5
+	url = https://github.com/ntmHuong1510/yolov5.git
+[submodule "Code/yolov5"]
+	path = Code/yolov5
+	url = https://github.com/ntmHuong1510/yolov5.git
