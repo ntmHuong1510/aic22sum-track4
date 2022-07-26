@@ -2,7 +2,7 @@ from os import listdir, path, rename
 
 
 if __name__ == "__main__":
-    file_read = open("image_segment.txt", "r")
+    file_read = open("../docs/image_segment.txt", "r")
     for filename in file_read:
         class_id = int(filename.split(":")[0])
         print(class_id)
