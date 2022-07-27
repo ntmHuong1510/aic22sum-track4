@@ -1,7 +1,7 @@
 import cv2
 import os
 
-rel_path = "..\\..\\Dataset\\AIC22_Track4_TestA\\TestA\\" 
+rel_path = "..\\..\\dataset\\aic22_track4_testA_video\\TestA\\" 
 
 videos = [rel_path + "testA_1.mp4", rel_path + "testA_2.mp4",rel_path +  "testA_3.mp4",rel_path +  "testA_4.mp4",rel_path + "testA_5.mp4"]
 idx = 0

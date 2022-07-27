@@ -84,10 +84,18 @@ def random_coordinate(img, mask, bg, overlap_percent, ovl_thresh):
 
     return x, y
 
+def bbox_coor(xmin, ymin, xmax, ymax, img_w, img_h):
+    dw = 1.0 / img_w
+    dh = 1.0 / img_h
+    x = ((xmin + xmax)/2.0 - 1) * dw
+    y = ((ymin + ymax)/2.0 - 1) * dh
+    w = (xmax - xmin) * dw
+    h = (ymax - ymin) * dh
+    return "{:.6f}".format(x) , "{:.6f}".format(y), "{:.6f}".format(w), "{:.6f}".format(h)
 def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--filename', default='../docs/image_segment.txt')
-    parser.add_argument('--bg_number', type=int, default=5800, help='number background need to generate data')
+    parser.add_argument('--bg_number', type=int, default=2200, help='number background need to generate data')
     parser.add_argument('--img_per_bg', type=int, default=20, help='number of objects generated in a background')
     parser.add_argument('--ovl_threshold', type=np.double, default=0.5, help='overlap threshold of 2 objects in an background')
     opt = parser.parse_args()
@@ -102,14 +110,16 @@ def main(opt):
         bg2 = cv2.imread(background[(count - 1) % len(background)])
         bg = np.zeros((bg2.shape[0], bg2.shape[1], 3), dtype = "uint8")
         numDelet = 0
+        filelabel = open("../labels/" + str(i).zfill(5) + ".txt", "w")
         while(True):
-            filename = open(arr[(count - 1) % len(arr)], "r")   #get file path of each class in order
+            fileIdx = np.random.randint(0, len(arr))
+            filename = open(arr[fileIdx], "r")   #get file path of each class in order
             lines = filename.readlines()
             if(len(lines) <= 1):
-                arr.remove(lines)
+                arr.remove(arr[fileIdx])
                 numDelet = numDelet + 1
             else:
-                with open(arr[(count - 1) % len(arr)], "w") as f:
+                with open(arr[fileIdx], "w") as f:
                     f.writelines(lines[1:])     # start writing lines except the first line , # lines[1:] from line 2 to last 
                 img, mask = get_img_and_mask(lines[0])  # read the first image 
                 resize_img(img, bg, mask)    #check boundary of img and scale it into background region
@@ -117,15 +127,18 @@ def main(opt):
                 img0_cor, img1_cor = img.shape[:2]
                 x, y = random_coordinate(img, mask, bg, 1, opt.ovl_threshold)
                 if(x > 1): # x == -1 means there is no place in bg can hold object with overlapping threshold < 0.5
+                    coordinate_obj = bbox_coor(x, y, x + img1_cor, y + img0_cor, bg2.shape[1], bg2.shape[0])
+                    filelabel.write(f"{fileIdx} {coordinate_obj[0]} {coordinate_obj[1]} {coordinate_obj[2]} {coordinate_obj[3]}\n")
+                    # print(str((count - 1) % len(arr)), bbox_coor(x, y, x + img1_cor, y + img0_cor, bg2.shape[1], bg2.shape[0]))
                     bg[y: y + img0_cor, x: x + img1_cor][mask == 255] = 255     #assign mask into black bg
                     bg2[y: y + img0_cor, x: x + img1_cor][mask ==255] = img[mask == 255]    #assign object in img into background
             count = count + 1
             if(count + numDelet == opt.img_per_bg):
                 count = 0
                 break
-            
-        cv2.imwrite("../data_generate_sample2/bg_" + str(i).zfill(5) + ".jpg", bg2)
+            # assert(False)
         print(i)
+        cv2.imwrite("../images/" + str(i).zfill(5) + ".jpg", bg2)
 
 if __name__ == '__main__':
     opt = parse_opt()
