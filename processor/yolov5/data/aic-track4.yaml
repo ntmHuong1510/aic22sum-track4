@@ -1,7 +1,7 @@
 # Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
-path: ../yolov5 # dataset root dir
-train: dataset/train_image # train images (relative to 'path') 128 images
-val: dataset/validate_image # val images (relative to 'path') 128 images
+path: ../../processor/ # dataset root dir
+train: dataset1/train_image # train images (relative to 'path') 128 images
+val: dataset1/validate_image # val images (relative to 'path') 128 images
 test: # test images (optional)
 # road_seg_train: dataset/Auto-retail-syndata-release/segmentation_labels # road segmentation data
 # road_seg_val: dataset/Auto-retail-syndata-release/segmentation_labels
