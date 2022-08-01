@@ -4,8 +4,9 @@ from tkinter import Frame
 from unittest import result   #Get file name in Tkinter
 import cv2
 
-fname1 = listdir("../background/testA_1")
-f = open("../docs/link_background.txt", "w")
+fname1 = listdir("../../background/testA_1")
+
+f = open("../../docs/link_background.txt", "w")
 
 for fname in fname1:
-    f.write("../background/testA_1/" + fname + '\n')
+    f.write(path.join("../background/testA_1/", fname, '\n'))
