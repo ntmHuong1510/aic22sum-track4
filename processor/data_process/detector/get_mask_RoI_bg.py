@@ -1,3 +1,6 @@
+"""
+    Test the RoI in background with openCV
+"""
 import cv2
 import numpy as np
 

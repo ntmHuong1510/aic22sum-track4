@@ -1,3 +1,7 @@
+"""
+    This file will concat the link of image with the corresponding its segment mask
+    Output :  file image_segment contain all relative link of each image and segment mask in dataset
+"""
 import shutil   # offers high-level operation on a file like a copy, create, and remote operation on the file
 from os import listdir, path, rename
 from tkinter import Frame

@@ -1,3 +1,6 @@
+"""
+    This file split data to 2 parts 80% data for training and 20% for testing
+"""
 from itertools import count
 import shutil   # offers high-level operation on a file like a copy, create, and remote operation on the file
 from os import listdir, path, rename

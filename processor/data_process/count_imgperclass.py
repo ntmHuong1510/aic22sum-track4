@@ -1,3 +1,7 @@
+"""
+    This file counts the number image of each class to validate whether data balance or not
+"""
+
 import shutil   # offers high-level operation on a file like a copy, create, and remote operation on the file
 from os import listdir, path, rename
 import cv2

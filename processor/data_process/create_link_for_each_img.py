@@ -1,3 +1,6 @@
+"""
+    This file read the whole list of image and corresponding segment of the dataset and split to each class in total 116 ones
+"""
 from os import listdir, path, rename
 
 
