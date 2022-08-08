@@ -1,7 +1,8 @@
 # YOLOv5 🚀 by Ultralytics, GPL-3.0 license
 """
-Run inference on images, videos, directories, streams, etc.
+python detect.py --weights best.pt --source ../../dataset/aic22_track4_testA_video/TestA/testA_3.mp4 --save-txt --save-crop
 
+Run inference on images, videos, directories, streams, etc.
 Usage - sources:
     $ python path/to/detect.py --weights yolov5s.pt --source 0              # webcam
                                                              img.jpg        # image
@@ -28,6 +29,8 @@ import argparse
 import os
 import sys
 from pathlib import Path
+import pickle as pck
+from xmlrpc.server import list_public_methods
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -107,11 +110,13 @@ def run(
     # Run inference
     model.warmup(imgsz=(1 if pt else bs, 3, *imgsz))  # warmup
     seen, windows, dt = 0, [], [0.0, 0.0, 0.0]
+    frame_objs = dict()
     for path, im, im0s, vid_cap, s in dataset:
+        # print(path[len(s) - 12:].split("\n")[0])
         t1 = time_sync()
         im = torch.from_numpy(im).to(device)
-        im = im.half() if model.fp16 else im.float()  # uint8 to fp16/32
-        im /= 255  # 0 - 255 to 0.0 - 1.0
+        im = im.half() if model.fp16 else im.float()  # uint8 to fp16/32   dataset\aic22_track4_testA_video\TestA\testA_1.mp4
+        im /= 255  # 0 - 255 to 0.0 - 1.0       ==> Normalize image
         if len(im.shape) == 3:
             im = im[None]  # expand for batch dim
         t2 = time_sync()
@@ -119,7 +124,9 @@ def run(
 
         # Inference
         visualize = increment_path(save_dir / Path(path).stem, mkdir=True) if visualize else False
-        pred = model(im, augment=augment, visualize=visualize)
+        # cv2.imshow("img", im)
+        # cv2.waitKey(0)
+        pred = model(im, augment=augment, visualize=visualize)  # Detect objs in img
         t3 = time_sync()
         dt[1] += t3 - t2
 
@@ -131,6 +138,7 @@ def run(
         # pred = utils.general.apply_classifier(pred, classifier_model, im, im0s)
 
         # Process predictions
+        obj_list = []
         for i, det in enumerate(pred):  # per image
             seen += 1
             if webcam:  # batch_size >= 1
@@ -138,6 +146,7 @@ def run(
                 s += f'{i}: '
             else:
                 p, im0, frame = path, im0s.copy(), getattr(dataset, 'frame', 0)
+                # print(str(frame) + " " + p)
 
             p = Path(p)  # to Path
             save_path = str(save_dir / p.name)  # im.jpg
@@ -149,12 +158,10 @@ def run(
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0.shape).round()
-
                 # Print results
                 for c in det[:, -1].unique():
                     n = (det[:, -1] == c).sum()  # detections per class
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
-
                 # Write results
                 for *xyxy, conf, cls in reversed(det):
                     if save_txt:  # Write to file
@@ -168,17 +175,21 @@ def run(
                         annotator.box_label(xyxy, label, color=colors(c, True))
                         #### get the crop image based on bounding box
                         x1, y1, x2, y2 = int(xyxy[0].item()), int(xyxy[1].item()), int(xyxy[2].item()), int(xyxy[3].item()) 
-                        confidenceScore = conf
                         class_index = int(cls)
                         object_name = names[int(cls)]
-                        file_name = str(int(class_index.item())).zfill(5)
-                        print('bounding box coordinate: ', x1, y2, x2, y2)
-                        print('class index is ', class_index)
-                        print('detected obj is ', object_name)
-                        original_img = im0 
-                        crop_img = im0[y1:y2, x1:x2]
-                        with open(f'./coordinate_bbox/{file_name}.txt', 'a') as f:  # Write the bounding box and class_id of each object 
-                            f.write(f'{x1} {y1}  {x2} {y2} {class_index}\n')
+                        file_name = str(class_index).zfill(5)
+                        # confidenceScore = conf
+                        # print('bounding box coordinate: ', x1, y2, x2, y2)
+                        # print('class index is ', class_index)
+                        # print('detected obj is ', object_name)
+                        # original_img = im0 
+                        # crop_img = im0[y1:y2, x1:x2]
+                        # with open(f'./coordinate_bbox/{file_name}.txt', 'a') as f:  # Write the bounding box and class_id of each object 
+                        #     f.write(f'{x1} {y1}  {x2} {y2} {class_index}\n')
+                        obj_info = class_index, x1, y1, x2, y2, object_name
+                        obj_list.append(obj_info)
+                        ################################################
+
                     if save_crop:
                         save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
 
@@ -188,7 +199,7 @@ def run(
                 if p not in windows:
                     windows.append(p)
                     cv2.namedWindow(str(p), cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
-                    cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])
+                    cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])    # Resize window for all device
                 cv2.imshow(str(p), im0)
                 cv2.waitKey(1)  # 1 millisecond
 
@@ -211,9 +222,14 @@ def run(
                         vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
                     vid_writer[i].write(im0)
 
-        # Print time (inference-only)
-        LOGGER.info(f'{s}Done. ({t3 - t2:.3f}s)')
-
+        
+        LOGGER.info(f'{s}Done. ({t3 - t2:.3f}s)')   # Print time (inference-only)
+        #Append frame and list of object in this frame into list
+        frame_objs.setdefault(frame, []).append(obj_list)
+    #App the list object in frames in the video in pickle
+    video_frames = open("video_frames/testA_3.txt", "wb")
+    pck.dump(frame_objs, video_frames)
+    video_frames.close()
     # Print results
     t = tuple(x / seen * 1E3 for x in dt)  # speeds per image
     LOGGER.info(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *imgsz)}' % t)
@@ -230,7 +246,7 @@ def parse_opt():
     parser.add_argument('--source', type=str, default=ROOT / 'data/images', help='file/dir/URL/glob, 0 for webcam')
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='(optional) dataset.yaml path')
     parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640], help='inference size h,w')
-    parser.add_argument('--conf-thres', type=float, default=0.25, help='confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.6, help='confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.45, help='NMS IoU threshold')
     parser.add_argument('--max-det', type=int, default=1000, help='maximum detections per image')
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
@@ -238,7 +254,7 @@ def parse_opt():
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
     parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
     parser.add_argument('--save-crop', action='store_true', help='save cropped prediction boxes')
-    parser.add_argument('--nosave', action='store_true', help='do not save images/videos')
+    parser.add_argument('--nosave', action='store_false', help='do not save images/videos')
     parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --classes 0, or --classes 0 2 3')
     parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
     parser.add_argument('--augment', action='store_true', help='augmented inference')
