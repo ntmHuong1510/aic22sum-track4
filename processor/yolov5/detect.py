@@ -1,6 +1,6 @@
 # YOLOv5 🚀 by Ultralytics, GPL-3.0 license
 """
-python detect.py --weights best.pt --source ../../dataset/aic22_track4_testA_video/TestA/testA_3.mp4 --save-txt --save-crop
+python detect.py --weights best.pt --source ../../dataset/aic22_track4_testA_video/TestA/testA_5.mp4 --view-img
 
 Run inference on images, videos, directories, streams, etc.
 Usage - sources:
@@ -27,6 +27,7 @@ Usage - formats:
 
 import argparse
 import os
+import numpy as np
 import sys
 from pathlib import Path
 import pickle as pck
@@ -34,6 +35,8 @@ from xmlrpc.server import list_public_methods
 
 import torch
 import torch.backends.cudnn as cudnn
+from PIL import Image
+import torchvision.transforms as transforms
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -48,6 +51,46 @@ from utils.general import (LOGGER, check_file, check_img_size, check_imshow, che
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, time_sync
 
+bg_roi=[[492, 247, 758, 600],
+        [582, 592, 1086, 921],   
+        [970, 570, 750, 556],   #[599, 303, 365, 206]
+        # [236, 3, 699, 569],
+        [589, 304, 775, 602],
+        [593, 310, 784, 605]
+        ]
+video_idx = 0
+
+def bbox_rel(*xyxy):
+    """ Calculates the relative bounding box from absolute pixel values. """
+    bbox_left = min([xyxy[0].item(), xyxy[2].item()])
+    bbox_top = min([xyxy[1].item(), xyxy[3].item()])
+    bbox_w = abs(xyxy[0].item() - xyxy[2].item())
+    bbox_h = abs(xyxy[1].item() - xyxy[3].item())
+    x_c = (bbox_left + bbox_w / 2)
+    y_c = (bbox_top + bbox_h / 2)
+    w = bbox_w
+    h = bbox_h
+    return x_c, y_c, w, h
+
+def draw_roi(img, x_roi, y_roi, w_roi, h_roi):
+    """
+        Attributes:  img: the curent frame or image
+        x_roi, y_roi, w_roi, h_roi: Attributes of the region of interest
+
+        return img with  bounding box surrounding the region of interest
+    """
+    x1, x2, y1, y2 = x_roi,x_roi + w_roi, y_roi, y_roi + h_roi
+    color = (188, 32, 75)
+    t_size = cv2.getTextSize("ROI", cv2.FONT_HERSHEY_PLAIN, 2, 2)[0]
+    cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+    cv2.rectangle(
+        img, (x1, y1), (x1 + t_size[0] + 3, y1 + t_size[1] + 4), color, -1)
+    cv2.putText(img, "ROI", (x1, y1 + t_size[1] + 4), cv2.FONT_HERSHEY_PLAIN, 2, [255, 255, 255], 2)
+    return img
+def yolobbox2bbox(x,y,w,h):
+    x1, y1 = x-w/2, y-h/2
+    x2, y2 = x+w/2, y+h/2
+    return x1, y1, x2, y2
 
 @torch.no_grad()
 def run(
@@ -75,7 +118,7 @@ def run(
         line_thickness=3,  # bounding box thickness (pixels)
         hide_labels=False,  # hide labels
         hide_conf=False,  # hide confidences
-        half=False,  # use FP16 half-precision inference
+        half=False,  # use FP16 half-precision inference,
         dnn=False,  # use OpenCV DNN for ONNX inference
 ):
     source = str(source)
@@ -115,6 +158,7 @@ def run(
         # print(path[len(s) - 12:].split("\n")[0])
         t1 = time_sync()
         im = torch.from_numpy(im).to(device)
+        # draw_roi(im, bg_roi[int(video_idx) - 1])
         im = im.half() if model.fp16 else im.float()  # uint8 to fp16/32   dataset\aic22_track4_testA_video\TestA\testA_1.mp4
         im /= 255  # 0 - 255 to 0.0 - 1.0       ==> Normalize image
         if len(im.shape) == 3:
@@ -146,7 +190,6 @@ def run(
                 s += f'{i}: '
             else:
                 p, im0, frame = path, im0s.copy(), getattr(dataset, 'frame', 0)
-                # print(str(frame) + " " + p)
 
             p = Path(p)  # to Path
             save_path = str(save_dir / p.name)  # im.jpg
@@ -164,6 +207,18 @@ def run(
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
                 # Write results
                 for *xyxy, conf, cls in reversed(det):
+                    ###############################################################################
+                    ### Get bounding box coordinate  and estimate the center of ROI
+                    # xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()
+                    # x1, y1, x2, y2 = int(xyxy[0].item()), int(xyxy[1].item()), int(xyxy[2].item()), int(xyxy[3].item()) 
+                    # bbox_left = min(x1, x2)
+                    # bbox_top = min(y1, y2)
+                    # bbox_w = abs(x1 - x2)
+                    # bbox_h = abs(y1 - y2)
+                    # x_c, y_c = (bbox_left + bbox_w / 2), (bbox_top + bbox_h / 2)
+                    # x_c, y_c = bbox_rel(xyxy)[:2]
+                    # if x_c >= x_roi and x_c <= x_roi + w_roi and y_c <= y_roi and y_c >= y_roi + h_roi:
+                    ###############################################################################
                     if save_txt:  # Write to file
                         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
                         line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
@@ -172,12 +227,34 @@ def run(
                     if save_img or save_crop or view_img:  # Add bbox to image 
                         c = int(cls)  # integer class
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                        annotator.box_label(xyxy, label, color=colors(c, True))
+
+                        ################################
+                                #"""         Extract the ROI by openCV       """
+                        # x, y, w, h = cv2.selectROI(im0)
+                        # cv2.destroyAllWindows()
+                        # bg = np.zeros((im0.shape[0],im0.shape[1],3), np.uint8) #height, width, channel
+
+                        # bg[y: y + h, x: x + w] = 255
+                        # cv2.imshow("ROI", bg)
+                        # cv2.waitKey()
+                        # # cv2.imwrite("RoI_bg.png", bg)
+                        # print(x, y, w, h)
+
+                        #################################
+                        annotator.box_label(yolobbox2bbox(x_roi, y_roi, w_roi, h_roi), "ROI",color=colors(c, True) )
+                        # annotator.box_label(xyxy, label, color=colors(c, True))
                         #### get the crop image based on bounding box
                         x1, y1, x2, y2 = int(xyxy[0].item()), int(xyxy[1].item()), int(xyxy[2].item()), int(xyxy[3].item()) 
                         class_index = int(cls)
                         object_name = names[int(cls)]
-                        file_name = str(class_index).zfill(5)
+                        bbox_left = min(x1, x2)
+                        bbox_top = min(y1, y2)
+                        bbox_w = abs(x1 - x2)
+                        bbox_h = abs(y1 - y2)
+                        x_c, y_c = (bbox_left + bbox_w / 2), (bbox_top + bbox_h / 2)
+                        if x_c >= x_roi and x_c <= x_roi + w_roi and y_c <= y_roi and y_c >= y_roi + h_roi:
+                            annotator.box_label(xyxy, label, color=colors(c, True))
+                        # file_name = str(class_index).zfill(5)
                         # confidenceScore = conf
                         # print('bounding box coordinate: ', x1, y2, x2, y2)
                         # print('class index is ', class_index)
@@ -186,12 +263,14 @@ def run(
                         # crop_img = im0[y1:y2, x1:x2]
                         # with open(f'./coordinate_bbox/{file_name}.txt', 'a') as f:  # Write the bounding box and class_id of each object 
                         #     f.write(f'{x1} {y1}  {x2} {y2} {class_index}\n')
-                        obj_info = class_index, x1, y1, x2, y2, object_name
-                        obj_list.append(obj_info)
+                        # obj_info = class_index, x1, y1, x2, y2, object_name
+                        # obj_list.append(obj_info)
                         ################################################
 
                     if save_crop:
-                        save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
+                        x_c, y_c = bbox_rel(xyxy)[:2]
+                        if x_c >= x_roi and x_c <= x_roi + w_roi and y_c <= y_roi and y_c >= y_roi + h_roi:
+                            save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
 
             # Stream results
             im0 = annotator.result()    
@@ -225,11 +304,12 @@ def run(
         
         LOGGER.info(f'{s}Done. ({t3 - t2:.3f}s)')   # Print time (inference-only)
         #Append frame and list of object in this frame into list
-        frame_objs.setdefault(frame, []).append(obj_list)
+        # frame_objs.setdefault(frame, []).append(obj_list)
+
     #App the list object in frames in the video in pickle
-    video_frames = open("video_frames/testA_3.txt", "wb")
-    pck.dump(frame_objs, video_frames)
-    video_frames.close()
+    # video_frames = open("video_frames/testA_3.txt", "wb")
+    # pck.dump(frame_objs, video_frames)
+    # video_frames.close()
     # Print results
     t = tuple(x / seen * 1E3 for x in dt)  # speeds per image
     LOGGER.info(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *imgsz)}' % t)
@@ -246,8 +326,8 @@ def parse_opt():
     parser.add_argument('--source', type=str, default=ROOT / 'data/images', help='file/dir/URL/glob, 0 for webcam')
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='(optional) dataset.yaml path')
     parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640], help='inference size h,w')
-    parser.add_argument('--conf-thres', type=float, default=0.6, help='confidence threshold')
-    parser.add_argument('--iou-thres', type=float, default=0.45, help='NMS IoU threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.7, help='confidence threshold')
+    parser.add_argument('--iou-thres', type=float, default=0.6, help='NMS IoU threshold')
     parser.add_argument('--max-det', type=int, default=1000, help='maximum detections per image')
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--view-img', action='store_true', help='show results')
@@ -263,7 +343,7 @@ def parse_opt():
     parser.add_argument('--project', default=ROOT / 'runs/detect', help='save results to project/name')
     parser.add_argument('--name', default='exp', help='save results to project/name')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
-    parser.add_argument('--line-thickness', default=3, type=int, help='bounding box thickness (pixels)')
+    parser.add_argument('--line-thickness', default=4, type=int, help='bounding box thickness (pixels)')
     parser.add_argument('--hide-labels', default=False, action='store_true', help='hide labels')
     parser.add_argument('--hide-conf', default=False, action='store_true', help='hide confidences')
     parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
@@ -274,11 +354,19 @@ def parse_opt():
     return opt
 
 
-def main(opt):
+def main(opt, bg):
     check_requirements(exclude=('tensorboard', 'thop'))
     run(**vars(opt))
 
 
 if __name__ == "__main__":
     opt = parse_opt()
-    main(opt)
+    value = getattr(opt,'source')
+
+    lst = value.split()[0].split("_", 5)
+    video_idx = lst[-1].split(".")[0]
+
+    print(opt)
+    x_roi, y_roi, w_roi, h_roi = bg_roi[int(video_idx) - 1]
+    print(video_idx, bg_roi[int(video_idx) - 1])
+    main(opt, bg_roi[int(video_idx) - 1])

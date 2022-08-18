@@ -3,6 +3,7 @@
 Dataloaders and dataset utils
 """
 
+from asyncio.log import logger
 import glob
 import hashlib
 import json
@@ -20,6 +21,7 @@ from zipfile import ZipFile
 
 import numpy as np
 import torch
+import logging
 import torch.nn.functional as F
 import yaml
 from PIL import ExifTags, Image, ImageOps
@@ -37,7 +39,7 @@ IMG_FORMATS = 'bmp', 'dng', 'jpeg', 'jpg', 'mpo', 'png', 'tif', 'tiff', 'webp'  
 VID_FORMATS = 'asf', 'avi', 'gif', 'm4v', 'mkv', 'mov', 'mp4', 'mpeg', 'mpg', 'ts', 'wmv'  # include video suffixes
 BAR_FORMAT = '{l_bar}{bar:10}{r_bar}{bar:-10b}'  # tqdm bar format
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
-
+logger = logging.getLogger(__name__)
 # Get orientation exif tag
 for orientation in ExifTags.TAGS.keys():
     if ExifTags.TAGS[orientation] == 'Orientation':

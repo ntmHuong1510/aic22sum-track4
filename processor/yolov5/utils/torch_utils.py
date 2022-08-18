@@ -87,10 +87,13 @@ def select_device(device='', batch_size=0, newline=True):
 
 def time_sync():
     # PyTorch-accurate time
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
+    torch.cuda.synchronize() if torch.cuda.is_available() else None
     return time.time()
-
+    
+def time_synchronized():
+    # pytorch-accurate time
+    torch.cuda.synchronize() if torch.cuda.is_available() else None
+    return time.time()
 
 def profile(input, ops, n=10, device=None):
     # YOLOv5 speed/memory/FLOPs profiler

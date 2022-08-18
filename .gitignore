@@ -5,7 +5,12 @@ processor/data_generate_sample/
 processor/data_generate_sample2/
 processor/dataset/
 processor/data_process/dataset2/
+processor/data_process/dataset3/
 processor/data_process/enhancement_img/
 best.pt
 training result
 sort
+processor/frame_extract/
+processor/video_frames/
+processor/data_process/detector
+processor/data_process/dataset3.zip
